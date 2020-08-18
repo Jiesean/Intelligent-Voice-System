@@ -15,6 +15,10 @@
 
 ## 整体架构
 
+![整体系统架构图](./Intelligent Speech Interaction System.png)
+
+
+
 ## 硬件选型与结构设计
 
 ## 声学性能测试
@@ -70,9 +74,17 @@ AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED -> {
 
 ### 降噪
 
+#### Android系统自带降噪
+
 ### AEC
 
+#### Android系统自带AEC
+
 ### 波束形成
+
+### AGC
+
+#### Android系统自带AGC
 
 ### 人声检测
 
