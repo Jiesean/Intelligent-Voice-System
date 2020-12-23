@@ -45,7 +45,90 @@
 
 ### 标准录音API
 
+使用Android设备进行智能语音开发，必须要了解Android提供的标准录音接口，此接口提供了在标准Android设备上进行录取流式音频的简单易用的方式，使用该接口我们可以很简单的从标准Android设备所能支持的音频设备中录取音频。
 
+主要参考：[AudioRecord](https://developer.android.google.cn/reference/android/media/AudioRecord?hl=en)
+
+1. 创建AudioRecord
+
+   ```kotlin
+       private var mAudioRecord: AudioRecord ? = null
+       //回声消除
+       private var mAEC: AcousticEchoCanceler ? = null
+   
+       //录音采集的来源，如系统mic、有线耳机mic等
+       private var mAudioSource: Int = MediaRecorder.AudioSource.MIC
+       //采样率，智能语音系统后续处理一般使用16k的原始音频，所以如果能满足的情况下，一般选择16k的采样率进行采样
+       //如果系统不支持16K,可以选择44.1k或者其他采样率，然后通过降采样之后进行使用
+       private var mAudioSampleRate: Int = 16000;
+       //通道数，使用智能手机的情况下，一般选择一通道数据，作为近场语音的输入
+       //特殊系统下，我们可以通过修改系统framework的音频的方式，将音频编码
+       //通过AudioRecrod将其录制出来，AudioRecord一般默认支持2通道
+       private var mAudioChanalConfig: Int =  AudioFormat.CHANNEL_IN_MONO
+       //智能语音系统一般使用16bit的采样位深
+       private var mAudioBitDepth: Int =  AudioFormat.ENCODING_PCM_16BIT
+       //获取录音需要的buffer
+       private var mAudioBuffer: Int = AudioRecord.getMinBufferSize(mAudioSampleRate,mAudioChanalConfig,mAudioBitDepth)
+       //每次采集的buffer
+       private var mAudioBufferPerFrame: ByteArray = ByteArray(32 * 16 )
+   
+   		mAudioRecord = AudioRecord(mAudioSource, mAudioSampleRate, mAudioChanalConfig, mAudioBitDepth, mAudioBuffer)
+   ```
+
+上述过程比较简单，需要注意的是AudioSource、采样率、采样位深的不同的试用场景
+
+AudioSource在手机上使用的情况下，一般直接选择Mic来录取手机自带麦克风的音频，有线耳机mic以及其他通过3.5cm耳机孔接入的有线、无线的麦克风一般设置为Default即可；
+
+采样率在AudioRecord的官方说明中，44100hz是所有平台均可以支持的采样率，其他的采样率需要根据具体的平台的属性判断是否支持，一般在智能语音系统中的前端语音处理模块需要的音频是16000k, 所以在一般的设备上可以选择16000k即可；
+
+采样位深在一般的Android设备上一般都是选择16bit即可，至于为什么选择16bit呢？
+
+是因为 $2^{16}=65536$,能够表示20log(65536)约等于96dB的动态范围，对于一般的前端信号处理和语音识别来说够用了。 
+
+2. 开始录音
+
+   ````kotlin
+   try{
+       mAudioRecord?.startRecording()
+   }catch(ex: IllegalStateException){
+       ex.stackTrace
+   }
+   ````
+
+3. 创建录音线程，循环读取buffer
+
+   因为read是耗时操作，所以需要在子线程中操作，创建读取线程，在读取线程中获取buffer，并将其直接送到后端的音频前端处理模块进行处理即可
+
+   ``` kotlin
+       private inner class AudioRecordRunnable :Runnable{
+           override fun run() {
+               mIsRecording = true
+               while (mIsRecording){
+                   var size = mAudioRecord?.read(mAudioBufferPerFrame,0,mAudioBufferPerFrame.size)
+                   size.let {
+                       if(it!! > 0){
+                           mSavedDataSize = mSavedDataSize + size!!
+                           runOnUiThread {
+                               mReadDateSize.setText("已录取音频，大小为: ${mSavedDataSize}")
+                           }
+   //                      writeFile(mAudioBufferPerFrame,"/sdcard/record.pcm",true)
+                       }
+                   }
+   
+               }
+           }
+   
+       }
+   
+       var thread: Thread = Thread(AudioRecordRunnable())
+       thread.start()
+   ```
+
+   
+
+
+
+使用示例：https://github.com/Jiesean/Jiesean-Personal-Notes/tree/master/audiorecord
 
 ### 蓝牙HSP录音
 

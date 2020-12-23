@@ -62,6 +62,7 @@ public class AudioRecordDemoActivity : AppCompatActivity() {
                     mAudioRecord = AudioRecord(mAudioSource, mAudioSampleRate, mAudioChanalConfig, mAudioBitDepth, mAudioBuffer)
                     mAudioRecord?.startRecording()
                 }catch (ex: Exception){
+                    ex.stackTrace
                     Log.d("AudioRecordDemoActivity",ex.toString())
                 }
                 var thread: Thread = Thread(AudioRecordRunnable())
