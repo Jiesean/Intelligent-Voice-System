@@ -127,7 +127,10 @@ AudioSource在手机上使用的情况下，一般直接选择Mic来录取手机
        thread.start()
    ```
 
-   
+
+
+
+TODO 回声的问题 
 
 
 
@@ -135,7 +138,15 @@ AudioSource在手机上使用的情况下，一般直接选择Mic来录取手机
 
 ### 蓝牙HSP录音
 
+在使用手机这类移动设备，尤其标准的Android手机、IOS手机，一般都支持通过蓝牙协议连接外设，这样的外设包括TWS耳机、车载系统、智能手表、智能手环、智能眼镜等等，以Android为例，因为Android手机是标准的，在Android手机上可以支持从外设中进行音频录取的方法并不多，蓝牙虽然具有丰富的协议，但一般应用开发的场景，是没有能力去进行对端，即智能外设一侧的开发的，因而我们只能在智能外设和手机连接并支持的蓝牙协议中寻找一个可以进行音频传输的协议来实现我们想要的效果。
+
+通过分析，我们知道几乎所有拥有语音功能的外设都支持通过蓝牙进行通话，蓝牙通话，是需要进行语音的双工通信的，即从智能外设中将语音传输到手机端，然后从手机端将音频发送到外设端。我们可以利用这个成熟的电话协议的录音功能，采集智能外设中的音频，以将多数的远场语音场景，转换成近场。
+
+其中以Android平台为例，提供了从支持HSP协议的蓝牙外设中录取音频的方法如下：
+
 1. 设置通话模式
+
+   此处大部分Android手机平台上，将Mode设置为COMMUNICATION即可，但是在实际测试中发现**部分华为手机**需要设置为AudioManager.MODE_IN_CALL，将他们设置为 COMMUNICATION 后，音频来源会是手机的mic，而猜测是华为对手机系统进行了魔改，随着Android系统的规范，他并没有随之进行规范自己的接口，所以导致了这样的问题
 
    ```kotlin
    mAudioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
@@ -166,11 +177,13 @@ AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED -> {
  mAudioManager?.setBluetoothScoOn(false)
 ```
 
+5. 开启录音
 
+   开启录音的方式如上节所述的AudioRecord的方法相同，只是在设置AudioSource的时候需要将其设置为 MediaRecorder.AudioSource.VOICE_COMMUNICATION
+
+TODO 优点：快速简单，通用性好，无回声问题  缺点：不稳定，音质差
 
 ### 蓝牙SPP录音
-
-
 
 ### 蓝牙BLE录音
 
