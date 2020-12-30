@@ -1,2 +1,3 @@
+include ':scorecord'
 include ':audiorecord'
 rootProject.name = "intelligent_voice_system"

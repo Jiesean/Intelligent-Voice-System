@@ -13,6 +13,7 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/audiorecord" />
+            <option value="$PROJECT_DIR$/scorecord" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />

@@ -1,6 +1,11 @@
-package com.jiesean.intelligent_voice_system
+package com.jiesean.scorecord
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
@@ -9,22 +14,36 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.Button
-import android.widget.ImageView
 import android.widget.TextView
-import com.jiesean.intelligent_voice_system.audiorecord.R
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.lang.Exception
-import kotlin.concurrent.thread
 
-public class AudioRecordDemoActivity : AppCompatActivity() {
+/**
+ * SCO链路录取tws耳机的音频示例
+ * 注意权限声明和动态权限获取
+ * 此处不做详细说明
+ */
+class ScoRecordActivity : AppCompatActivity() {
+    companion object {
+        private val TAG: String = ScoRecordActivity.toString()
+    }
+
+    var mAudioManager: AudioManager ?= null
+
+    private val mStartScoBtn : Button by lazy { findViewById<Button>(R.id.startScoBtn) }
+    private val mStartRecordBtn : Button by lazy { findViewById<Button>(R.id.startRecordBtn) }
+    private val mStopRecordBtn : Button by lazy { findViewById<Button>(R.id.stopRecordBtn) }
+    private val mReadDateSize : TextView by lazy { findViewById<TextView>(R.id.textView2) }
+
     private var mAudioRecord: AudioRecord ? = null
-    //回声消除
-    private var mAEC: AcousticEchoCanceler ? = null
+
+    private var mIsRecording: Boolean = false
+    private var mSavedDataSize: Int = 0
 
     //录音采集的来源，如系统mic、有线耳机mic等
-    private var mAudioSource: Int = MediaRecorder.AudioSource.MIC
+    private var mAudioSource: Int = MediaRecorder.AudioSource.VOICE_COMMUNICATION
     //采样率，智能语音系统后续处理一般使用16k的原始音频，所以如果能满足的情况下，一般选择16k的采样率进行采样
     //如果系统不支持16K,可以选择44.1k或者其他采样率，然后通过降采样之后进行使用
     private var mAudioSampleRate: Int = 16000;
@@ -39,26 +58,23 @@ public class AudioRecordDemoActivity : AppCompatActivity() {
     //每次采集的buffer
     private var mAudioBufferPerFrame: ByteArray = ByteArray(32 * 16 )
 
-    private var mIsRecording: Boolean = false
-    private var mSavedDataSize: Int = 0
-    private val mStartRecordBtn : Button by lazy { findViewById<Button>(R.id.startRecordBtn) }
-    private val mStopRecordBtn : Button by lazy { findViewById<Button>(R.id.stopRecordBtn) }
-    private val mReadDateSize : TextView by lazy { findViewById<TextView>(R.id.textView2) }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_audiorecord_demo)
+        setContentView(R.layout.activity_sco_record)
+
+        initScoStateReceiver()
+
+        mStartScoBtn.setOnClickListener(object :View.OnClickListener{
+            override fun onClick(p0: View?) {
+                startSco()
+            }
+
+        })
 
         mStartRecordBtn.setOnClickListener(object : View.OnClickListener{
             override fun onClick(p0: View?) {
                 try {
                     mAudioRecord = AudioRecord(mAudioSource, mAudioSampleRate, mAudioChanalConfig, mAudioBitDepth, mAudioBuffer)
-                    mAudioRecord?.let {
-                        mAEC = AcousticEchoCanceler.create(it.audioSessionId)
-                        if (AcousticEchoCanceler.isAvailable()) {
-                            mAEC?.setEnabled(true)
-                        }
-                    }
                     mAudioRecord?.startRecording()
                 }catch (ex: Exception){
                     ex.stackTrace
@@ -79,7 +95,24 @@ public class AudioRecordDemoActivity : AppCompatActivity() {
             }
 
         })
+    }
 
+    private fun startSco(){
+        mAudioManager = this.getSystemService(Context.AUDIO_SERVICE) as AudioManager?
+        //设置Audio 模式为communication ,在部分华为手机上或者较老的机型上可能需要设置为call
+        if (!mAudioManager!!.isBluetoothScoAvailableOffCall) {
+            return
+        }
+        mAudioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
+        //开启sco 链路
+        mAudioManager?.startBluetoothSco()
+    }
+
+    private fun initScoStateReceiver(){
+        var scoStateFilter : IntentFilter = IntentFilter()
+        scoStateFilter.addAction(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED)
+
+        this.registerReceiver(ScoStateBroadcastReceiver(),scoStateFilter)
     }
 
     fun writeFile(buffer: ByteArray, filePath: String, isAppend: Boolean) {
@@ -104,6 +137,29 @@ public class AudioRecordDemoActivity : AppCompatActivity() {
             }
 
         }
+    }
+
+    inner class ScoStateBroadcastReceiver:BroadcastReceiver(){
+        override fun onReceive(p0: Context?, intent: Intent?) {
+            val state = intent?.getIntExtra(
+                AudioManager.EXTRA_SCO_AUDIO_STATE,
+                AudioManager.SCO_AUDIO_STATE_ERROR
+            )
+
+            when(state){
+                AudioManager.SCO_AUDIO_STATE_DISCONNECTED ->{
+                    Log.d(TAG,"Sco state = SCO_AUDIO_STATE_DISCONNECTED")
+                }
+                AudioManager.SCO_AUDIO_STATE_CONNECTED ->{
+                    Log.d(TAG,"Sco state = SCO_AUDIO_STATE_CONNECTED")
+                    mAudioManager?.isBluetoothScoOn = true
+                }
+                AudioManager.SCO_AUDIO_STATE_CONNECTING ->{
+                    Log.d(TAG,"Sco state = SCO_AUDIO_STATE_CONNECTING")
+                }
+            }
+        }
+
     }
 
     private inner class AudioRecordRunnable :Runnable{
