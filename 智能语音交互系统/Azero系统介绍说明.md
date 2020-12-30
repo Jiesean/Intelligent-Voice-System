@@ -55,7 +55,12 @@
 
 ### 标准录音API
 
-使用Android设备进行智能语音开发，必须要了解Android提供的标准录音接口，此接口提供了在标准Android设备上进行录取流式音频的简单易用的方式，使用该接口我们可以很简单的从标准Android设备所能支持的音频设备中录取音频。
+使用Android设备进行智能语音开发，必须要了解Android提供的标准录音接口，Android提供的录音接口有两个
+
+- MediaRecorder 提供音频读取并保存成文件，是AudioRecord的封装，使用简单，但不灵活
+- AudioRecord 提供音频读取并流式存取，使用相对复杂，但是灵活
+
+因为实时语音系统需要流式的音频，因此我们此处主要讨论AudioRecord的使用方法：
 
 主要参考：[AudioRecord](https://developer.android.google.cn/reference/android/media/AudioRecord?hl=en)
 
