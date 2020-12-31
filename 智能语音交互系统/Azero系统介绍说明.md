@@ -218,7 +218,184 @@ AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED -> {
 
 ### 蓝牙SPP录音
 
+如上一章节所属，在当前智能外设尤其TWS耳机人均覆盖率日渐增高的今天，为智能耳机配备专属的语音交互系统也成为必然的流行趋势，为了实现这样的能力，我们需要tws耳机可以作为智能语音系统的拾音、播放终端，当其作为拾音终端的时候，有诸多的好处，但也必须面临音频如何传输过来的困境，毕竟在传统的蓝牙耳机的使用场景中，只有打电话的情况下，才需要音频流从耳机传输到手机端，因此在蓝牙协议的设计上也只有HSP设计了耳机往手机输送音频的协议。如果在不改动耳机的程序的情况下，我们只能使用上一节所述的sco链路来取得tws mic的音频。
+
+但随着当前tws的火热，多家巨头的参与，是的智能耳机中程序定制成为了可能，如苹果Airpod的siri语音助手、小米的小爱同学助手、百度的小度智能语音助手等，都不能程度的通过定制语音通路实现了耳机音频传输到手机，虽然各家方案各有不同，具体到Android 上我们可以使用spp的方式去实现获取TWS耳机的实时音频流。
+
+SPP协议的全称为Serial Port Profile,它能够在两个蓝牙设备之间建立串口已进行数据传输，其协议栈如下：
+
+![](/Users/jiesean/project/doc/Jiesean-Personal-Notes/智能语音交互系统/spp_stack.png)
+
+从协议栈来看，SPP是基于RFCOMM协议的，RFCOMM是基于连接的协议，和BLE协议进行对比的话，其优点如下：
+
+- 传输速率快
+- 兼容性好
+
+其缺点如下：
+
+- 不支持IOS手机
+- 数据控制需要进一步设计应用层协议
+- 功耗相对BLE高，工作电流高
+
+综上的几个优缺点，在Android平台上进行语音传输的时候一般选择SPP作为音频传输协议。
+
+其在Android上的传输架构如下：
+
+![](spp_communication.png)
+
+
+
+SPP在Android系统上的使用也非常简单，分为server端、client端，其中sever端的开启的步骤为：
+
+1. 获取BluetoothAdapter
+
+   ```kotlin
+   mAdapter = BluetoothAdapter.getDefaultAdapter()
+   ```
+
+2. 创建一个server监听socket
+
+   RFCOMM的socket服务分为安全的连接和非安全的连接两种，创建方法不同，其他的均相同，其区别可以参考：https://developer.android.google.cn/reference/android/bluetooth/BluetoothAdapter?hl=en#listenUsingRfcommWithServiceRecord(java.lang.String,%20java.util.UUID) and https://developer.android.google.cn/reference/android/bluetooth/BluetoothAdapter?hl=en#listenUsingInsecureRfcommWithServiceRecord(java.lang.String,%20java.util.UUID)
+
+   ```java
+   //创建安全的socket
+   BluetoothServerSocket mmServerSocket = mAdapter.listenUsingRfcommWithServiceRecord(NAME_SECURE,MY_UUID_SECURE);
+   //创建不安全的socket
+   BluetoothServerSocket mmServerInsecureSocket = 
+   mAdapter.listenUsingInsecureRfcommWithServiceRecord(NAME_INSECURE, MY_UUID_INSECURE);
+   ```
+
+3. 开启监听
+
+   因为监听函数是block函数，需要开启一个子线程来创建监听socket， 直到返回accept函数返回一个成功的连接
+
+   ```java
+   try {
+       // This is a blocking call and will only return on a
+       // successful connection or an exception
+       socket = mmServerSocket.accept();
+   } catch (IOException e) {
+       Log.e(TAG, "Socket Type: " + mSocketType + "accept() failed", e);
+       break;
+   }
+   ```
+
+4. 获取输入输出流
+
+   ```java
+   InputStream tmpIn = null;
+   OutputStream tmpOut = null;
+   
+   // Get the BluetoothSocket input and output streams
+   try {
+       tmpIn = socket.getInputStream();
+       tmpOut = socket.getOutputStream();
+   } catch (IOException e) {
+       Log.e(TAG, "temp sockets not created", e);
+   }
+   ```
+
+5. 等待接收数据
+
+   因为InputStream.read()方法blocks until input data is available,所以需要创建子线程去等待并循环接收数据
+
+   ```java
+       private class ConnectedThread extends Thread {
+           public void run() {
+               Log.i(TAG, "BEGIN mConnectedThread");
+               byte[] buffer = new byte[1024 * 1024];
+               int bytes;
+   
+               // Keep listening to the InputStream while connected
+               while (mState == STATE_CONNECTED) {
+                   try {
+                       // Read from the InputStream
+                       bytes = mmInStream.read(buffer);
+                       byte[] data = extractBytes(buffer,0,bytes);
+                       writeFile(data,"/sdcard/record.dat",true);
+                       Log.e(TAG,"receive data length = " + bytes);
+                       // Send the obtained bytes to the UI Activity
+                       mHandler.obtainMessage(Constants.MESSAGE_READ, bytes, -1, buffer)
+                               .sendToTarget();
+                   } catch (IOException e) {
+                       Log.e(TAG, "disconnected", e);
+                       connectionLost();
+                       break;
+                   }
+               }
+           }
+   ```
+
+6. 发送数据
+
+   ```java
+    public void write(byte[] buffer) {
+         try {
+             mmOutStream.write(buffer);
+         } catch (IOException e) {
+             Log.e(TAG, "Exception during write", e);
+         }
+    }
+   ```
+
+
+
+创建client socket，进行连接，并进行数据的读写的步骤和sever端的大致相同：
+
+1. 从绑定设备列表根据名称或者mac地址或者监听设备连接中获取目标设备
+
+2. 创建client端socket
+
+   此处是否选用Insecure连接，要跟sever端进行对应
+
+   ```java
+   //创建安全的socket
+   BluetoothSocket mmSocket = device.createRfcommSocketToServiceRecord(
+                               MY_UUID_SECURE);
+   //创建非安全的socket
+   BluetoothSocket mmSocket = device.createInsecureRfcommSocketToServiceRecord(
+                               MY_UUID_INSECURE);
+   ```
+
+   
+
+3. 开启socket连接
+
+   ```java
+   try {
+       // This is a blocking call and will only return on a
+       // successful connection or an exception
+       mmSocket.connect();
+   } catch (IOException e) {
+       // Close the socket
+       try {
+           mmSocket.close();
+       } catch (IOException e2) {
+           Log.e(TAG, "unable to close() " + mSocketType +
+                   " socket during connection failure", e2);
+       }
+       connectionFailed();
+       return;
+   }
+   ```
+
+4. 建立连接后，获取输入输出流，并进行数据的读写操作和sever端没有差异。
+
+
+
+使用示例：https://github.com/android/connectivity-samples/tree/main/BluetoothChat/
+
 ### 蓝牙BLE录音
+
+对比上一章节提到的SPP来说，优点如下：
+
+- 兼容IOS
+- 本身集成了很多profile,如电量、健康、设备信息等，很多基本功能，免于进行应用层的协议设计和开发
+- 功耗小
+
+缺点如下：
+
+- 传输速率慢，在要求大数据传输时，很难达到要求。 从网上的资料看，一般产品我们认为稳定在 3KB/S左右.实验环境 可以到20KB左右
 
 ### 多麦克风阵列拾音
 
