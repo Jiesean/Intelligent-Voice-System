@@ -49,6 +49,14 @@ public class AudioRecordDemoActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_audiorecord_demo)
 
+        val str:String = "fruit"
+        val lambda = { str:String->str.length }
+
+        Log.e("wangjie","oncreate()" + Thread.currentThread().name.toString())
+        Thread{
+            Log.e("wangjie","Thread" + Thread.currentThread().name.toString())
+        }.start()
+        Log.e("wangjie",lambda.toString())
         mStartRecordBtn.setOnClickListener(object : View.OnClickListener{
             override fun onClick(p0: View?) {
                 try {
@@ -118,7 +126,7 @@ public class AudioRecordDemoActivity : AppCompatActivity() {
                             mReadDateSize.setText("已录取音频，大小为: ${mSavedDataSize}")
                         }
 
-//                        writeFile(mAudioBufferPerFrame,"/sdcard/record.pcm",true)
+                        writeFile(mAudioBufferPerFrame,"/sdcard/record.pcm",true)
                     }
                 }
 

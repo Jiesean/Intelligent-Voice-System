@@ -413,6 +413,193 @@ BLE是的开发说明： https://github.com/Jiesean/BleDemo
 
 ### 多麦克风阵列拾音
 
+在目前方兴未艾的智能语音系统中，为了解决远场场景下拾音准确性问题，需要通过多麦克风阵列进行拾音，而对于Android标准API而言，并没有支持多路麦克风音频的采集，最多支持两路数据的采集，为了解决这个问题，目前市面上常见的麦克风阵列的数据采集方案通常为两种：
+
+1. 在HAL层将多路麦克风数据编码，压缩；在AudioRecord录取两路音频数据，解压缩，加密之后得到原始的多路pcm数据
+2. 直接在应用层使用tinyalsa接口录制多路pcm数据
+
+对比上述两种方式，方案一主要特点是：
+
+- 需要修改Android系统源码，难度大
+- 应用层面录音不独占，应用层其他录音不受影响
+- 应用层额外需要进行解密、解密
+
+方案二：
+
+- 需要有Root 权限
+- 独占式录音
+- 仅在应用层即可实现，无需改动系统源码
+- 可以同时采集回采信号
+
+#### ALSA
+
+上面的录音，以及声音的播放、声音的调节等都有赖于各种声卡来支持，对于不同的厂商的方案，声卡可能有不同的配置，不同的性能，为了很好的管理这些音频设备，并为上层应用系统提供统一的接口，我们就需要一套音频驱动系统来屏蔽硬件设备本身的差异。而在当前的Linux 内核中使用的就是ALSA（Advanced Linux Sound Architecture）音频驱动框架。
+
+早期的linux版本使用的是OSS框架（Open Sound System），但是因为OSS并不是开源系统，涉及到知识产权以及维护、改善等都不理想，Linux舍弃了OSS，转而使用完全开源的ALSA系统。
+
+对于ALSA系统，我们暂不需要进行深入了解，只需要对它有个基本的印象即可。
+
+以下是ALSA的组成部分, 其中我们可能会用到的是alsa-lib、以及alsa-utils中的aplay、arecord两个小工具
+
+| **Element**   | **Description**                                              |
+| ------------- | ------------------------------------------------------------ |
+| alsa-driver   | 内核驱动包                                                   |
+| alsa-lib      | 用户空间的函数库                                             |
+| alsa-utils    | 包含了很多实用的小程序，比如<br/>alsactl:用于保存设备设置<br/>amixer:是一个命令行程序，用于声量和其它声音控制<br/>alsamixer:amixer的ncurses版<br/>acconnect和aseqview:制作MIDI连接，以及检查已连接的端口列表<br/>aplay和arecord:两个命令行程序，分别用于播放和录制多种格式的音频 |
+| alsa-tools    | 包含一系列工具程序                                           |
+| alsa-firmware | 音频固件支持包                                               |
+| alsa-plugins  | 插件包，比如jack,pulse,maemo                                 |
+| alsa-oss      | 用于兼容OSS的模拟包                                          |
+| pyalsa        | 用于编译Python版本的alsa lib                                 |
+
+ALSA的主要文件节点，其中我们常用的是 PCM interface
+
+1. Information Interface (/proc/asound)
+2. Control Interface (/dev/snd/controlCX)
+3. Mixer Interface (/dev/snd/mixerCXDX)
+4. PCM Interface (/dev/snd/pcmCXDX)
+5. Raw MIDI Interface (/dev/snd/midiCXDX)
+6. Sequencer Interface (/dev/snd/seq)
+7. Timer Interface (/dev/snd/timer)
+
+#### Tinyalsa
+
+看到Tiny一词，我们已经可以猜到Tinyalsa其实就是缩减版本的ALSA，其实早期的Android版本也是直接使用的ALSA，但是由于ALSA过于庞大，繁琐，很多功能使用不到，又占用空间，因此Android对其进行了瘦身，于是就产生了Tinyalsa
+
+```
+tinyalsa: a small library to interface with ALSA in the Linux kernel
+
+The aims are:
+
+- Provide a basic pcm and mixer API
+- If it's not absolutely needed, don't add it to the API
+- Avoid supporting complex and unnecessary operations that could be
+  dealt with at a higher level
+```
+
+以上是Android tinyalsa仓库的官方的介绍
+
+
+
+对于tinyalsa在整个Android音频系统的位置和作用可以参考下图来理解，这是从网上找的一张图
+
+![Android音频系统架构图](./android_audio_system.png)
+
+从上图可以看到Tinyalsa是直接和音频设备打交道，并通过HAL层的统一接口为Audio核心实现库AudioFlinger等提供硬件操作的能力，HAL硬件抽象层的存在的目的主要屏蔽了底下的硬件差异，此处，则实现了底层音频驱动的差异屏蔽，如ALSA、Tinyalsa的切换等也是在此处完成的。在此架构中，我们可以看到我们前面录音使用AudioRecord等API都会调用到tinyalsa完成最后的硬件的操作，除此之外，我们可以看到Tinyalsa还提供了libtinyalsa为用户空间的应用层提供了接口调用，我们前面提到的使用tinyalsa进行多路原始音频采集正是通过这个方案进行。
+
+对比Alsa支持的文件节点，tinyalsa只支持其中的一小部分
+
+1. Control Interface (/dev/snd/controlCX)  partly support
+2. PCM Interface (/dev/snd/pcmCXDX) partly support
+
+
+
+Tinyalsa提供了三种调试脚本工具：
+
+- **Tinycap** 录音工具 
+
+  Usage: tinycap file.wav [-D card] [-d device] [-c channels] 
+
+- **Tinyplay** 播放工具
+
+  Usage: tinyplay file.wav [-D card] [-d device] [-p period_size]
+
+- **Tinymix** 进行音频通路的配置
+
+在Android可以adb shell之后直接使用这些脚本工具进行调试，如果部分平台没有该工具，可以使用其编译链编译一个放进去即可使用
+
+#### 录取麦克风阵列+回采音频
+
+Android应用中使用Tinyalsa进行录音其实也很简单，只需要应用层调用native使用tinyalsa提供的录音接口录音即可，其逻辑大体如下：
+
+<img src="./app_record_with_tinyalsa.png" alt="应用使用tinyalsa录音的实现图" style="zoom:50%;" />
+
+其中native类中调用tinyalsa.so的接口主要如下
+
+1. pcm_open()
+
+   其函数调用说明
+
+   ```c++
+   /* Open and close a stream */
+   struct pcm *pcm_open(unsigned int card, unsigned int device,
+                        unsigned int flags, struct pcm_config *config);
+   ```
+
+   其总共有四个参数：
+
+   - **card** 对应声卡
+
+   - **device** 对应设备
+
+     查看设备对应的声卡、设备节点的方法也很简单，只需要进到设备的/dev/snd下，查看该目录下的文件节点，找到对应的设备节点，其中pcm开头的为pcm节点， 如 pcmC1D0c pcmC1D0p，C代表声卡，D代表device,c代表capture是麦克风,p代表playback是音响设备，有的可能c + p
+
+   - **flags**
+
+     此处我们设置为 \#define PCM_IN         0x10000000
+
+   - **pcm_config**
+
+     ```c++
+     /* Configuration for a stream */
+     struct pcm_config {
+         unsigned int channels;
+         unsigned int rate;
+         unsigned int period_size;
+         unsigned int period_count;
+         enum pcm_format format;
+     
+         /* Values to use for the ALSA start, stop and silence thresholds.  Setting
+          * any one of these values to 0 will cause the default tinyalsa values to be
+          * used instead.  Tinyalsa defaults are as follows.
+          *
+          * start_threshold   : period_count * period_size
+          * stop_threshold    : period_count * period_size
+          * silence_threshold : 0
+          */
+         unsigned int start_threshold;
+         unsigned int stop_threshold;
+         unsigned int silence_threshold;
+         unsigned int silence_size;
+     
+         /* Minimum number of frames available before pcm_mmap_write() will actually
+          * write into the kernel buffer. Only used if the stream is opened in mmap mode
+          * (pcm_open() called with PCM_MMAP flag set).   Use 0 for default.
+          */
+         int avail_min;
+         int flag;
+     };
+     ```
+
+     录音相关关键参数的配置，其中包括通道数，采样率，采样位深，buffer大小等，此处设置跟不同平台密切相关，需要针对平台进行设置，我们常见的6mic环形阵列的智能音箱的配置为 
+
+     **8ch 16k 16bit 256 4**
+
+     8ch表示有8个通道，一般为6mic通道 + 1参考信号通道1空信号通道或者两个参考信号通道
+
+     16k表示采样率为16k, 一般语音识别系统都要求的是16k的采样率，因此此处建议使用16k ,如果系统采样率是48k或96k等，需要在录音后进行降采样（resample）,可以使用一些开源的降采样库进行降采样，请勿直接进行抽点的方式降采样，根据奈奎斯特定理，直接抽点会产生混叠现象，采样库使用滤波器来减少降采样造成的失真
+
+     16bit表示使用16bit的采样位深进行采样，如果设备支持更高的采样位深，因为我们后续的语音处理中只需要16bit的精度，因此我们可以通过适当的移位来放大或者缩小采样的音频来供给后续的处理系统更高质量的音频
+
+     period_size: 每次相邻中断之间处理的sample个数，处理完一个period，声卡硬件产生一个中断。period_count: 每次最大可提交的period的个数。因为alsa内部使用ringbuffer，period_size * period_count 决定了ring_buffer的大小
+
+     
+
+2. pcm_read()
+
+```c++
+/* Write data to the fifo.
+ * Will start playback on the first write or on a write that
+ * occurs after a fifo underrun.
+ */
+int pcm_write(struct pcm *pcm, const void *data, unsigned int count);
+int pcm_read(struct pcm *pcm, void *data, unsigned int count);
+```
+
+录音的参数比较简单，第一个是open_pcm获得的pcm文件句柄，第二个参数是buffer用来存储录取的音频，第三个参数为录取的音频的大小
+
+
+
 ## 音频传输
 
 ### Opus
