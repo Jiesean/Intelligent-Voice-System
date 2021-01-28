@@ -12,6 +12,8 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/alsax" />
+            <option value="$PROJECT_DIR$/alsaxrecord" />
             <option value="$PROJECT_DIR$/audiorecord" />
             <option value="$PROJECT_DIR$/scorecord" />
           </set>

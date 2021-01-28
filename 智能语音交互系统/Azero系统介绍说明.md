@@ -536,6 +536,8 @@ Android应用中使用Tinyalsa进行录音其实也很简单，只需要应用�
 
      查看设备对应的声卡、设备节点的方法也很简单，只需要进到设备的/dev/snd下，查看该目录下的文件节点，找到对应的设备节点，其中pcm开头的为pcm节点， 如 pcmC1D0c pcmC1D0p，C代表声卡，D代表device,c代表capture是麦克风,p代表playback是音响设备，有的可能c + p
 
+     ![设备查看pcm节点](./snd.png)
+
    - **flags**
 
      此处我们设置为 \#define PCM_IN         0x10000000
@@ -642,6 +644,14 @@ int pcm_read(struct pcm *pcm, void *data, unsigned int count);
 4. 部分平台应用中需要引入系统库，如tinyalsa.so等
 
 #### 使用示例
+
+Linux上的使用示例以及tinyalsa、alsa的调用实现，以及上述pre process功能均已包含在该项目中，另外使用Android编译链将该工程编译成so库，还可以直接在Android项目中使用，直接在native进行接口调用接口，即可使用其中的既有功能
+
+- [alsax仓库](https://github.com/Jiesean/alsax)
+
+- [Android调用alsax实现tinyalsa录音的示例]()
+
+  
 
 ## 音频传输
 
