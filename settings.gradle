@@ -1,3 +1,4 @@
+include ':opuscodec'
 include ':alsaxrecord'
 include ':scorecord'
 include ':audiorecord'

@@ -15,6 +15,7 @@
             <option value="$PROJECT_DIR$/alsax" />
             <option value="$PROJECT_DIR$/alsaxrecord" />
             <option value="$PROJECT_DIR$/audiorecord" />
+            <option value="$PROJECT_DIR$/opuscodec" />
             <option value="$PROJECT_DIR$/scorecord" />
           </set>
         </option>

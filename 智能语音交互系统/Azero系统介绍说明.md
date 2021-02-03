@@ -677,6 +677,24 @@ Linux上的使用示例以及tinyalsa、alsa的调用实现，以及上述pre pr
 
 ### Opus
 
+>Opus is a codec for interactive speech and audio transmission over the Internet.
+>
+>  Opus can handle a wide range of interactive audio applications, including
+>Voice over IP, videoconferencing, in-game  chat, and even remote live music
+>performances. It can scale from low bit-rate narrowband speech to very high
+>quality stereo music.
+>
+>  Opus, when coupled with an appropriate container format, is also suitable
+>for non-realtime  stored-file applications such as music distribution, game
+>soundtracks, portable music players, jukeboxes, and other applications that
+>have historically used high latency formats such as MP3, AAC, or Vorbis.
+
+引用其官方说明，opus是一种适用于互联网上交互式语音、音频传输的编解码器，既能够处理低比特率的窄带语音到全带通该品质音频，支持包括IP语音通话、视频会议、游戏内聊天、远程现场音乐表演到高品质立体音乐播放。它也可以处理非实时的高清音频，例如音乐文件、游戏音轨、点唱机播放的原声带等
+
+#### Android应用中集成opus
+
+
+
 ## 播放器
 
 ## 信号处理
