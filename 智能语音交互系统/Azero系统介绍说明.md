@@ -693,7 +693,7 @@ Linux上的使用示例以及tinyalsa、alsa的调用实现，以及上述pre pr
 
 #### Android应用中集成opus
 
-
+[参考示例](https://github.com/Jiesean/Jiesean-Personal-Notes/tree/master/opuscodec)
 
 ## 播放器
 
