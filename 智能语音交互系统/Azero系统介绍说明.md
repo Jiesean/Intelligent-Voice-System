@@ -748,6 +748,8 @@ Linux上的使用示例以及tinyalsa、alsa的调用实现，以及上述pre pr
 
 ### 声纹检测
 
+![](./voiceprint.png)
+
 ## SDK状态机和对话管理
 
 ## AVS协议
